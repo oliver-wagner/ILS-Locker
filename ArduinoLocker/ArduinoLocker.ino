@@ -1,17 +1,13 @@
 #include <ESP8266WiFi.h>
 
-extern "C" {
-  #include "user_interface.h"
-}
-
 const char* ssid     = "yourssid";
 const char* password = "yourpassword";
 const char* host = "wifitest.adafruit.com";
-byte bootCount = 0;
+unsigned long bootCount = 0;
 int batteryLevel;
+boolean lockerAssigned = false;
 
 WiFiClientSecure wifiClient; 
-
 
 void connect_wifi() {
   Serial.println();
@@ -38,6 +34,8 @@ void connect_wifi() {
   Serial.println("WiFi connected");  
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
+  Serial.println("MAC address: ");
+  Serial.println(WiFi.macAddress());
 }
 
 
@@ -67,7 +65,8 @@ void setup() {
 
   batteryLevel = battery_level();
 
-  if (batteryLevel < 620){
+  if (batteryLevel < 30){
+    
     //add to next transmission that locker needs to be shut down
   }
   
@@ -76,8 +75,10 @@ void setup() {
   ESP.rtcUserMemoryRead(0, bootCount, sizeof(bootCount));
   Serial.println("Boot number: " + String(bootCount));
   
-  if ((int) bootCount == 1){
-    // Do http get with mac address until valid response from pi registering to locker
+  if (bootCount == 1){
+    while (!lockerAssigned){
+       // Do http get with mac address until valid response from pi registering to locker
+    }
     
   }
 
