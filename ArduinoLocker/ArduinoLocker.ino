@@ -1,12 +1,18 @@
 #include <ESP8266WiFi.h>
 
+#define SERVO_PIN 14
 const char* ssid     = "yourssid";
 const char* password = "yourpassword";
 const char* host = "wifitest.adafruit.com";
-unsigned long bootCount = 0;
+const int httpPort = 8000;
+String url;
 int batteryLevel;
-boolean lockerAssigned = false;
+unsigned long bootCount;
+boolean lockerAssigned = false
+boolean validResponse = false;
+String response;
 
+Servo servo;
 WiFiClientSecure wifiClient; 
 
 void connect_wifi() {
@@ -55,48 +61,92 @@ int battery_level() {
   return level;
 }
 
+String send_message(String url) {
+  if (!client.connect(host, httpPort)) {
+        Serial.println("Connection failed");
+        return;
+      }
+       // We now create a URI for the request
+      Serial.print("Requesting URL: ");
+      Serial.println(url);
+  
+      // This will send the request to the server
+      client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                  "Host: " + host + "\r\n" + 
+                  "Connection: close\r\n\r\n");
+      delay(500);
+  
+      // Read all the lines of the reply from server and print them to Serial
+      while(client.available()){
+        response = client.readStringUntil('\r');
+        Serial.print(response);
+      }
+      
+      Serial.println();
+      Serial.println("closing connection");
+
+      return response;
+}
 
 void setup() {
   
   Serial.begin(115200);
   delay(100);
 
+  String ReturnMessage = ""
+
   connect_wifi();
+
+  servo.attach(SERVO_PIN);
 
   batteryLevel = battery_level();
 
-  if (batteryLevel < 30){
-    
-    //add to next transmission that locker needs to be shut down
-  }
-  
-  
-  ++bootCount;
   ESP.rtcUserMemoryRead(0, bootCount, sizeof(bootCount));
+  ++bootCount;
   Serial.println("Boot number: " + String(bootCount));
+
+
+  Serial.print("connecting to ");
+  Serial.println(host);
+  
+  WiFiClient client;
+
+  url = "/ILSA/lockers/arduino/" + WiFi.macAddress() +"/" + batteryLevel;
   
   if (bootCount == 1){
     while (!lockerAssigned){
-       // Do http get with mac address until valid response from pi registering to locker
+      response = send_message(url);
+      if (response == "No Locker"){
+        delay(10000);    
+      } else {
+        lockerAssigned = true;
+      }
+  } else {
+    response = send_message(url);
+    while (!validResponse) {
+      if (response == "Unlock"){
+        //turn servo, wait 5 seconds, turn servo back
+        servo.write(90);
+        delay(5000);
+        servo.write(0);
+        ESP.rtcUserMemoryWrite(0, bootCount, sizeof(bootCount))
+        ESP.deepSleep(0);
+      } else if (response == "Lock") {
+        Serial.println("Locker is not opening");
+        ESP.rtcUserMemoryWrite(0, bootCount, sizeof(bootCount))
+        ESP.deepSleep(0);
+      } else if (response == "Sleep") {
+        Serial.println("Locker is low on battery and going to sleep");
+        ESP.rtcUserMemoryWrite(0, bootCount, sizeof(bootCount))
+        ESP.deepSleep(0);
+      } else {
+        Serial.println("Unknown response");
+        Serial.println("Ask for retransmission");
+        response = send_message(url);
+      }
     }
-    
   }
-
-  
-  //Locker button was pressed, send get, parse, do i open?
-
-  //turn servo, wait 5 seconds, turn servo back
-  //stay closed
-  
- 
-
-
-
- 
-
-
- ESP.rtcUserMemoryWrite(0, bootCount, sizeof(bootCount))
- //ESP.deepSleep(0);
+  }
 }
  
 
@@ -127,49 +177,7 @@ void setup() {
 
 
 
- delay(5000);
-  ++value;
- 
-  Serial.print("connecting to ");
-  Serial.println(host);
   
-  // Use WiFiClient class to create TCP connections
-  WiFiClient client;
-  const int httpPort = 80;
-  if (!client.connect(host, httpPort)) {
-    Serial.println("connection failed");
-    return;
-  }
-
-
-  // We now create a URI for the request
-  String url = "/testwifi/index.html";
-  Serial.print("Requesting URL: ");
-  Serial.println(url);
-  
-  // This will send the request to the server
-  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-               "Host: " + host + "\r\n" + 
-               "Connection: close\r\n\r\n");
-  delay(500);
-  
-  // Read all the lines of the reply from server and print them to Serial
-  while(client.available()){
-    String line = client.readStringUntil('\r');
-    Serial.print(line);
-  }
-  
-  Serial.println();
-  Serial.println("closing connection");
-
-
-
-
-
-
-
-
- 
 void loop() {
 }
 
