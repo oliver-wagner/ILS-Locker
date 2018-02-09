@@ -1,19 +1,20 @@
 #include <ESP8266WiFi.h>
+#include <Servo.h>
 
 #define SERVO_PIN 14
-const char* ssid     = "yourssid";
-const char* password = "yourpassword";
-const char* host = "wifitest.adafruit.com";
+const char* ssid     = "VP3 Ballers 2.4";
+const char* password = "AskHarsh!";
+const char* host = "192.168.200.123";
 const int httpPort = 8000;
 String url;
 int batteryLevel;
-unsigned long bootCount;
-boolean lockerAssigned = false
+//unsigned int *bootCount;
+boolean lockerAssigned = false;
 boolean validResponse = false;
 String response;
 
 Servo servo;
-WiFiClientSecure wifiClient; 
+WiFiClient client; 
 
 void connect_wifi() {
   Serial.println();
@@ -22,6 +23,7 @@ void connect_wifi() {
   Serial.println(ssid);
 
   WiFi.begin(ssid, password);
+  unsigned long wifiConnectStart = millis();
   
   while (WiFi.status() != WL_CONNECTED) {
     if (WiFi.status() == WL_CONNECT_FAILED) {
@@ -64,7 +66,7 @@ int battery_level() {
 String send_message(String url) {
   if (!client.connect(host, httpPort)) {
         Serial.println("Connection failed");
-        return;
+        return "Connection Failed";
       }
        // We now create a URI for the request
       Serial.print("Requesting URL: ");
@@ -89,31 +91,29 @@ String send_message(String url) {
 }
 
 void setup() {
+
   
   Serial.begin(115200);
   delay(100);
-
-  String ReturnMessage = ""
 
   connect_wifi();
 
   servo.attach(SERVO_PIN);
 
-  batteryLevel = battery_level();
+  batteryLevel = 10;
 
-  ESP.rtcUserMemoryRead(0, bootCount, sizeof(bootCount));
-  ++bootCount;
-  Serial.println("Boot number: " + String(bootCount));
+  //ESP.rtcUserMemoryRead(0, (unsigned int*) &bootCount, sizeof(bootCount));
+  //++bootCount;
+  Serial.print("Boot number: ");
+  //Serial.println(*bootCount);
 
 
   Serial.print("connecting to ");
   Serial.println(host);
-  
-  WiFiClient client;
 
-  url = "/ILSA/lockers/arduino/" + WiFi.macAddress() +"/" + batteryLevel;
+  url = "/ILSA/lockers/arduino/" + WiFi.macAddress() + "/" + batteryLevel + "/";
   
-  if (bootCount == 1){
+  if (1 == 1){
     while (!lockerAssigned){
       response = send_message(url);
       if (response == "No Locker"){
@@ -121,63 +121,36 @@ void setup() {
       } else {
         lockerAssigned = true;
       }
+    } 
   } else {
-    response = send_message(url);
-    while (!validResponse) {
-      if (response == "Unlock"){
-        //turn servo, wait 5 seconds, turn servo back
-        servo.write(90);
-        delay(5000);
-        servo.write(0);
-        ESP.rtcUserMemoryWrite(0, bootCount, sizeof(bootCount))
-        ESP.deepSleep(0);
-      } else if (response == "Lock") {
-        Serial.println("Locker is not opening");
-        ESP.rtcUserMemoryWrite(0, bootCount, sizeof(bootCount))
-        ESP.deepSleep(0);
-      } else if (response == "Sleep") {
-        Serial.println("Locker is low on battery and going to sleep");
-        ESP.rtcUserMemoryWrite(0, bootCount, sizeof(bootCount))
-        ESP.deepSleep(0);
-      } else {
-        Serial.println("Unknown response");
-        Serial.println("Ask for retransmission");
-        response = send_message(url);
+      response = send_message(url);
+      Serial.print("response: ");
+      Serial.println(response);
+      while (!validResponse) {
+        if (response == "Unlock"){
+          //turn servo, wait 5 seconds, turn servo back
+          servo.write(90);
+          delay(5000);
+          servo.write(0);
+          //ESP.rtcUserMemoryWrite(0, (unsigned int*) &bootCount, sizeof(bootCount));
+          //ESP.deepSleep(0);
+        } else if (response == "Lock") {
+          Serial.println("Locker is not opening");
+          //ESP.rtcUserMemoryWrite(0, (unsigned int*) &bootCount, sizeof(bootCount));
+          //ESP.deepSleep(0);
+        } else if (response == "Sleep") {
+          Serial.println("Locker is low on battery and going to sleep");
+          //ESP.rtcUserMemoryWrite(0, (unsigned int*) &bootCount, sizeof(bootCount));
+          //ESP.deepSleep(0);
+        } else {
+          Serial.println("Unknown response");
+          Serial.println("Ask for retransmission");
+          response = send_message(url);
+        }
       }
-    }
-  }
-  }
+   }
 }
  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
 void loop() {
 }
 
