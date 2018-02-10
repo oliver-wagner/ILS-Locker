@@ -1,17 +1,28 @@
 #include <ESP8266WiFi.h>
-#include <Servo.h>
+#include "Servo.h"
 
 #define SERVO_PIN 14
+
+typedef struct {
+  uint32_t crc32;
+  uint32_t bootFlag;
+  uint8_t channel;
+  uint8_t ap_mac[6];
+  uint8_t padding;
+} rtcData;
+
+rtcData rtcValue;
+
 const char* ssid     = "VP3 Ballers 2.4";
 const char* password = "AskHarsh!";
 const char* host = "192.168.200.123";
 const int httpPort = 8000;
 String url;
 int batteryLevel;
-//unsigned int *bootCount;
 boolean lockerAssigned = false;
 boolean validResponse = false;
 String response;
+bool rtcValid = false;
 
 Servo servo;
 WiFiClient client; 
@@ -22,30 +33,78 @@ void connect_wifi() {
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
+  if( rtcValid ) {
+    // The RTC data was good, make a quick connection
+    Serial.println("HERE");
+    WiFi.begin(ssid, password, rtcValue.channel, rtcValue.ap_mac, true);
+  }
+  else {
+    // The RTC data was not valid, so make a regular connection
   WiFi.begin(ssid, password);
-  unsigned long wifiConnectStart = millis();
+  }
   
-  while (WiFi.status() != WL_CONNECTED) {
-    if (WiFi.status() == WL_CONNECT_FAILED) {
+  int retries = 0;
+  int wifiStatus = WiFi.status();
+  while( wifiStatus != WL_CONNECTED ) {
+    retries++;
+    Serial.println("Failed to connect to WiFi");
+    if( retries == 100 ) {
+      // Quick connect is not working, reset WiFi and try regular connection
+      WiFi.disconnect();
+      delay( 10 );
+      WiFi.forceSleepBegin();
+      delay( 10 );
+      WiFi.forceSleepWake();
+      delay( 10 );
+      WiFi.begin(ssid, password);
+    }
+    if( retries == 600 ) {
+      // Giving up after 30 seconds and going back to sleep
+      WiFi.disconnect( true );
+      delay(1);
+      WiFi.mode( WIFI_OFF );
       Serial.println("Failed to connect to WiFi. Please verify credentials: ");
-      delay(10000);
+      ESP.deepSleep( 1000 , WAKE_RF_DISABLED );
+      return; // Not expecting this to be called, the previous call will never return.
     }
-    delay(500);
-    Serial.println("...");
-    if (millis() - wifiConnectStart > 15000) {
-      Serial.println("Failed to connect to WiFi");
-      return;
-    }
+    delay( 50 );
+    wifiStatus = WiFi.status();
   }
 
   Serial.println("");
   Serial.println("WiFi connected");  
-  Serial.println("IP address: ");
+  Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-  Serial.println("MAC address: ");
+  Serial.print("MAC address: ");
   Serial.println(WiFi.macAddress());
 }
 
+uint32_t calculateCRC32( const uint8_t *data, size_t length ) {
+  uint32_t crc = 0xffffffff;
+  while( length-- ) {
+    uint8_t c = *data++;
+    for( uint32_t i = 0x80; i > 0; i >>= 1 ) {
+      bool bit = crc & 0x80000000;
+      if( c & i ) {
+        bit = !bit;
+      }
+
+      crc <<= 1;
+      if( bit ) {
+        crc ^= 0x04c11db7;
+      }
+    }
+  }
+
+  return crc;
+}
+
+void write_RTC() {
+  rtcValue.channel = WiFi.channel();
+  memcpy( rtcValue.ap_mac, WiFi.BSSID(), 6 ); // Copy 6 bytes of BSSID (AP's MAC address)
+  rtcValue.crc32 = calculateCRC32( ((uint8_t*)&rtcValue) + 4, sizeof( rtcValue ) - 4 );
+  ESP.rtcUserMemoryWrite( 0, (uint32_t*)&rtcValue, sizeof( rtcValue ) );
+}
 
 int battery_level() {
  
@@ -81,7 +140,6 @@ String send_message(String url) {
       // Read all the lines of the reply from server and print them to Serial
       while(client.available()){
         response = client.readStringUntil('\r');
-        Serial.print(response);
       }
       
       Serial.println();
@@ -92,34 +150,43 @@ String send_message(String url) {
 
 void setup() {
 
-  
   Serial.begin(115200);
   delay(100);
+
+  // Try to read WiFi settings from RTC memory
+  if( ESP.rtcUserMemoryRead( 0, (uint32_t*)&rtcValue, sizeof( rtcValue ) ) ) {
+    // Calculate the CRC of what we just read from RTC memory, but skip the first 4 bytes as that's the checksum itself.
+    uint32_t crc = calculateCRC32( ((uint8_t*)&rtcValue) + 4, sizeof( rtcValue ) - 4 );
+    if( crc == rtcValue.crc32 ) {
+      rtcValid = true;
+    }
+  }
 
   connect_wifi();
 
   servo.attach(SERVO_PIN);
+  servo.write(90);
 
-  batteryLevel = 10;
+  batteryLevel = battery_level();
 
-  //ESP.rtcUserMemoryRead(0, (unsigned int*) &bootCount, sizeof(bootCount));
-  //++bootCount;
-  Serial.print("Boot number: ");
-  //Serial.println(*bootCount);
+  Serial.print("Boot flag: ");
+  Serial.println(rtcValue.bootFlag);
 
-
-  Serial.print("connecting to ");
+  Serial.print("Connecting to ");
   Serial.println(host);
 
   url = "/ILSA/lockers/arduino/" + WiFi.macAddress() + "/" + batteryLevel + "/";
-  
-  if (1 == 1){
+  if (rtcValue.bootFlag != 2723){
     while (!lockerAssigned){
       response = send_message(url);
-      if (response == "No Locker"){
+      Serial.println(response);
+      if (response == "\nNo Locker") {
         delay(10000);    
       } else {
         lockerAssigned = true;
+        rtcValue.bootFlag = 2723;
+        write_RTC();
+        ESP.deepSleep(0);
       }
     } 
   } else {
@@ -127,21 +194,23 @@ void setup() {
       Serial.print("response: ");
       Serial.println(response);
       while (!validResponse) {
-        if (response == "Unlock"){
+        if (response == "\nUnlock") {
           //turn servo, wait 5 seconds, turn servo back
-          servo.write(90);
-          delay(5000);
+          Serial.println("Here");
           servo.write(0);
-          //ESP.rtcUserMemoryWrite(0, (unsigned int*) &bootCount, sizeof(bootCount));
-          //ESP.deepSleep(0);
-        } else if (response == "Lock") {
+          delay(5000);
+          Serial.println("Here1");
+          servo.write(90);
+          write_RTC();
+          ESP.deepSleep(0);
+        } else if (response == "\nLock") {
           Serial.println("Locker is not opening");
-          //ESP.rtcUserMemoryWrite(0, (unsigned int*) &bootCount, sizeof(bootCount));
-          //ESP.deepSleep(0);
-        } else if (response == "Sleep") {
+          write_RTC();
+          ESP.deepSleep(0);
+        } else if (response == "\nSleep") {
           Serial.println("Locker is low on battery and going to sleep");
-          //ESP.rtcUserMemoryWrite(0, (unsigned int*) &bootCount, sizeof(bootCount));
-          //ESP.deepSleep(0);
+          write_RTC();
+          ESP.deepSleep(0);
         } else {
           Serial.println("Unknown response");
           Serial.println("Ask for retransmission");
