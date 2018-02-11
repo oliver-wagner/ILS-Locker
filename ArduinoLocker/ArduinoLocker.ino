@@ -13,9 +13,9 @@ typedef struct {
 
 rtcData rtcValue;
 
-const char* ssid     = "VP3 Ballers 2.4";
-const char* password = "AskHarsh!";
-const char* host = "192.168.200.123";
+const char* ssid     = "ILSANetwork";
+const char* password = "SwypeD@ddy1";
+const char* host = "192.168.1.1";
 const int httpPort = 8000;
 String url;
 int batteryLevel;
@@ -46,6 +46,7 @@ void connect_wifi() {
   int retries = 0;
   int wifiStatus = WiFi.status();
   while( wifiStatus != WL_CONNECTED ) {
+    Serial.println("Failed to connect to WiFi");
     retries++;
     Serial.println("Failed to connect to WiFi");
     if( retries == 100 ) {
@@ -67,7 +68,7 @@ void connect_wifi() {
       ESP.deepSleep( 1000 , WAKE_RF_DISABLED );
       return; // Not expecting this to be called, the previous call will never return.
     }
-    delay( 50 );
+    delay( 500 );
     wifiStatus = WiFi.status();
   }
 
@@ -181,7 +182,7 @@ void setup() {
       response = send_message(url);
       Serial.println(response);
       if (response == "\nNo Locker") {
-        delay(10000);    
+        delay(1200000);    
       } else {
         lockerAssigned = true;
         rtcValue.bootFlag = 2723;
