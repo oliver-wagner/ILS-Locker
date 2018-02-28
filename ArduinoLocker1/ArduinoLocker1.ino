@@ -166,7 +166,7 @@ void setup() {
   connect_wifi();
 
   servo.attach(SERVO_PIN);
-  servo.write(90);
+  servo.write(0);
 
   batteryLevel = battery_level();
 
@@ -197,11 +197,9 @@ void setup() {
       while (!validResponse) {
         if (response == "\nUnlock") {
           //turn servo, wait 5 seconds, turn servo back
-          Serial.println("Here");
-          servo.write(0);
+          servo.write(140);
           delay(5000);
-          Serial.println("Here1");
-          servo.write(90);
+          servo.write(0);
           write_RTC();
           ESP.deepSleep(0);
         } else if (response == "\nLock") {
