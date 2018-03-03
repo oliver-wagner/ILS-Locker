@@ -1,7 +1,7 @@
 #include <ESP8266WiFi.h>
 #include "Servo.h"
 
-#define SERVO_PIN 14
+#define SERVO_PIN 12
 
 typedef struct {
   uint32_t crc32;
@@ -23,6 +23,7 @@ boolean lockerAssigned = false;
 boolean validResponse = false;
 String response;
 bool rtcValid = false;
+int pos = 0;
 
 Servo servo;
 WiFiClient client; 
@@ -35,7 +36,6 @@ void connect_wifi() {
 
   if( rtcValid ) {
     // The RTC data was good, make a quick connection
-    Serial.println("HERE");
     WiFi.begin(ssid, password, rtcValue.channel, rtcValue.ap_mac, true);
   }
   else {
@@ -166,7 +166,6 @@ void setup() {
   connect_wifi();
 
   servo.attach(SERVO_PIN);
-  servo.write(0);
 
   batteryLevel = battery_level();
 
@@ -177,6 +176,7 @@ void setup() {
   Serial.println(host);
 
   url = "/ILSA/lockers/arduino/" + WiFi.macAddress() + "/" + batteryLevel + "/";
+  int transmissionretries = 0;
   if (rtcValue.bootFlag != 2723){
     while (!lockerAssigned){
       response = send_message(url);
@@ -197,9 +197,15 @@ void setup() {
       while (!validResponse) {
         if (response == "\nUnlock") {
           //turn servo, wait 5 seconds, turn servo back
-          servo.write(140);
-          delay(5000);
-          servo.write(0);
+          for (pos = 20; pos <= 170; pos += 1) {
+            servo.write(pos);
+            delay(15); 
+          }
+          delay(10000);
+          for (pos = 170; pos >= 20; pos -= 1) {
+            servo.write(pos);
+            delay(15); 
+          }
           write_RTC();
           ESP.deepSleep(0);
         } else if (response == "\nLock") {
@@ -213,7 +219,13 @@ void setup() {
         } else {
           Serial.println("Unknown response");
           Serial.println("Ask for retransmission");
-          response = send_message(url);
+          transmissionretries++;
+          if (transmissionretries <= 20) {
+            response = send_message(url);
+          } else {
+            Serial.println("Too many unknown responses. Going to sleep");
+            ESP.deepSleep(0);
+          }
         }
       }
    }
