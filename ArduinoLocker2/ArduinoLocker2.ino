@@ -2,6 +2,8 @@
 #include "Servo.h"
 
 #define SERVO_PIN 12
+#define LED_PIN_RED 13
+#define LED_PIN_GREEN 15
 
 typedef struct {
   uint32_t crc32;
@@ -154,6 +156,9 @@ void setup() {
   Serial.begin(115200);
   delay(100);
 
+  pinMode(LED_PIN_RED, OUTPUT);
+  pinMode(LED_PIN_GREEN, OUTPUT);
+  
   // Try to read WiFi settings from RTC memory
   if( ESP.rtcUserMemoryRead( 0, (uint32_t*)&rtcValue, sizeof( rtcValue ) ) ) {
     // Calculate the CRC of what we just read from RTC memory, but skip the first 4 bytes as that's the checksum itself.
@@ -176,7 +181,6 @@ void setup() {
   Serial.println(host);
 
   url = "/ILSA/lockers/arduino/" + WiFi.macAddress() + "/" + batteryLevel + "/";
-  int transmissionretries = 0;
   if (rtcValue.bootFlag != 2723){
     while (!lockerAssigned){
       response = send_message(url);
@@ -201,7 +205,9 @@ void setup() {
             servo.write(pos);
             delay(15); 
           }
+          digitalWrite(LED_PIN_GREEN, HIGH);
           delay(10000);
+          digitalWrite(LED_PIN_GREEN, LOW);
           for (pos = 150; pos >= 0; pos -= 1) {
             servo.write(pos);
             delay(15); 
@@ -210,22 +216,32 @@ void setup() {
           ESP.deepSleep(0);
         } else if (response == "\nLock") {
           Serial.println("Locker is not opening");
+          digitalWrite(LED_PIN_RED, HIGH);
+          delay(3000);
+          digitalWrite(LED_PIN_RED, LOW);
           write_RTC();
           ESP.deepSleep(0);
         } else if (response == "\nSleep") {
           Serial.println("Locker is low on battery and going to sleep");
+          digitalWrite(LED_PIN_RED, HIGH);
+          delay(3000);
+          digitalWrite(LED_PIN_RED, LOW);
+          write_RTC();
+          ESP.deepSleep(0);
+        } else if (response == "\nNo Locker") {
+          Serial.println("No locker setup in database. Going to sleep");
+          digitalWrite(LED_PIN_RED, HIGH);
+          delay(3000);
+          digitalWrite(LED_PIN_RED, LOW);
           write_RTC();
           ESP.deepSleep(0);
         } else {
           Serial.println("Unknown response");
-          Serial.println("Ask for retransmission");
-          transmissionretries++;
-          if (transmissionretries <= 20) {
-            response = send_message(url);
-          } else {
-            Serial.println("Too many unknown responses. Going to sleep");
-            ESP.deepSleep(0);
-          }
+          Serial.println("Go to sleep");
+          digitalWrite(LED_PIN_RED, HIGH);
+          delay(3000);
+          digitalWrite(LED_PIN_RED, LOW);
+          ESP.deepSleep(0);
         }
       }
    }
