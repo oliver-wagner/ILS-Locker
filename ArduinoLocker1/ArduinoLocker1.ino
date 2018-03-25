@@ -197,12 +197,12 @@ void setup() {
       while (!validResponse) {
         if (response == "\nUnlock") {
           //turn servo, wait 5 seconds, turn servo back
-          for (pos = 20; pos <= 170; pos += 1) {
+          for (pos = 0; pos <= 160; pos += 1) {
             servo.write(pos);
             delay(15); 
           }
           delay(10000);
-          for (pos = 170; pos >= 20; pos -= 1) {
+          for (pos = 160; pos >= 0; pos -= 1) {
             servo.write(pos);
             delay(15); 
           }
