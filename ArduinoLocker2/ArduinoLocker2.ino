@@ -230,17 +230,22 @@ void setup() {
           ESP.deepSleep(0);
         } else if (response == "\nNo Locker") {
           Serial.println("No locker setup in database. Going to sleep");
-          digitalWrite(LED_PIN_RED, HIGH);
-          delay(3000);
-          digitalWrite(LED_PIN_RED, LOW);
+          for (int i = 0; i < 5; i += 1) {
+            digitalWrite(LED_PIN_RED, HIGH);
+            delay(1000);
+            digitalWrite(LED_PIN_RED, LOW);
+          }
           write_RTC();
           ESP.deepSleep(0);
         } else {
           Serial.println("Unknown response");
           Serial.println("Go to sleep");
-          digitalWrite(LED_PIN_RED, HIGH);
-          delay(3000);
-          digitalWrite(LED_PIN_RED, LOW);
+          for (int i = 0; i < 5; i += 1) {
+            digitalWrite(LED_PIN_RED, HIGH);
+            delay(250);
+            digitalWrite(LED_PIN_RED, LOW);
+            delay(250);
+          }
           ESP.deepSleep(0);
         }
       }
