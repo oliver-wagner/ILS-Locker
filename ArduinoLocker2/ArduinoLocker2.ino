@@ -189,14 +189,14 @@ void setup() {
       while (!validResponse) {
         if (response == "\nUnlock") {
           //turn servo, wait 5 seconds, turn servo back
-          for (pos = 0; pos <= 150; pos += 1) {
+          for (pos = 80; pos <= 180; pos += 1) {
             servo.write(pos);
             delay(15); 
           }
           digitalWrite(LED_PIN_GREEN, HIGH);
           delay(10000);
           digitalWrite(LED_PIN_GREEN, LOW);
-          for (pos = 150; pos >= 0; pos -= 1) {
+          for (pos = 180; pos >= 8 0; pos -= 1) {
             servo.write(pos);
             delay(15); 
           }
